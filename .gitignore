@@ -1,0 +1,11 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Lokal hemlig config (WiFi-uppgifter) — kopiera config.h.example -> config.h
+src/config.h
+
+# Editor
+.vscode/
+.DS_Store

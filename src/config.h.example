@@ -1,0 +1,30 @@
+// ============================================================
+//  config.h — Rymdlist
+//  Kopiera denna fil till  src/config.h  och fyll i dina värden.
+//  config.h är gitignore:ad så dina WiFi-uppgifter aldrig checkas in.
+// ============================================================
+#pragma once
+
+// ---- LED-hårdvara ----------------------------------------------------------
+#define LED_PIN      5          // GPIO som datalinjen (DIN) är kopplad till
+#define NUM_LEDS     60         // Antal WS2812B-pixlar i listen
+#define LED_TYPE     WS2812B    // FastLED-chipset (WS2812B, WS2811, SK6812 ...)
+#define COLOR_ORDER  GRB        // Färgordning. WS2812B är nästan alltid GRB.
+
+// ---- WiFi (station-läge) ---------------------------------------------------
+#define WIFI_SSID    "DITT_WIFI"
+#define WIFI_PASS    "DITT_LOSENORD"
+
+// ---- Namn på nätet ---------------------------------------------------------
+// Ger http://rymdlist.local (mDNS/Bonjour). Byt om du har flera lister.
+#define MDNS_NAME    "rymdlist"
+
+// ---- Strömtak (skyddar en klen 5V-adapter) --------------------------------
+// FastLED drar aldrig mer än så här — dämpar ljuset automatiskt vid behov.
+// Räkna ~60 mA per pixel vid full vit. 60 pixlar = ~3600 mA teoretiskt max.
+// Sätt MAX_MA lägre än vad din adapter klarar (med marginal).
+#define MAX_MA       2000       // milliampere
+#define VOLTS        5          // matningsspänning (WS2812B = 5V)
+
+// ---- AP-läge (fallback om WiFi inte nås inom ~15 s) -----------------------
+#define AP_SSID      "Rymdlist-setup"   // öppet AP; anslut och gå till http://192.168.4.1
