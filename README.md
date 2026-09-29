@@ -1,8 +1,9 @@
 # 🚀 Rymdlist
 
-Fristående ESP32-firmware som driver en **WS2812B-ledlist** och låter vem som helst
-på samma WiFi justera ljuset live från mobilen — via en webbsida som ESP32:n
-**själv serverar**. Ingen extern server, ingen molntjänst, ingen MQTT-broker.
+Fristående firmware för **ESP32 eller ESP8266** som driver en **WS2812B-ledlist**
+och låter vem som helst på samma WiFi justera ljuset live från mobilen — via en
+webbsida som kortet **själv serverar**. Ingen extern server, ingen molntjänst,
+ingen MQTT-broker.
 
 Två telefoner ser samma sak samtidigt (state speglas över WebSocket), och senaste
 inställningen sparas i flashminnet (NVS) så listen ser likadan ut efter en omstart.
@@ -65,7 +66,15 @@ pio run --target upload      # bygg + flasha över USB
 pio device monitor           # se serieutskrift (115200 baud)
 ```
 
-Byt kort genom att ändra `default_envs` / board i `platformio.ini` (t.ex. ESP32-C3).
+**Kort:** projektet stöder två targets i `platformio.ini`:
+
+| Kort | env | Anteckning |
+|------|-----|------------|
+| NodeMCU / Amica **ESP8266** | `nodemcuv2` | standard (`default_envs`). `LED_PIN 5` = pinnen **D1** |
+| **ESP32** WROOM-devkit | `esp32dev` | 3 MB app-partition, gott om plats för framtida MQTT |
+
+`pio run --target upload` använder standard-env. Kör ett specifikt kort med
+`pio run -e esp32dev -t upload` (eller byt `default_envs` överst i filen).
 
 ### 3. Öppna UI:t
 

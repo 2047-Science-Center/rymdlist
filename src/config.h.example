@@ -6,7 +6,9 @@
 #pragma once
 
 // ---- LED-hårdvara ----------------------------------------------------------
-#define LED_PIN      5          // GPIO som datalinjen (DIN) är kopplad till
+// LED_PIN anges som GPIO-nummer. På ESP8266/Amica är GPIO5 = pinnen märkt "D1".
+// (Undvik D3/D4/D8 = GPIO0/2/15, de är boot-strap-pinnar.)
+#define LED_PIN      5          // GPIO för datalinjen (DIN). ESP8266: GPIO5 = D1
 #define NUM_LEDS     60         // Antal WS2812B-pixlar i listen
 #define LED_TYPE     WS2812B    // FastLED-chipset (WS2812B, WS2811, SK6812 ...)
 #define COLOR_ORDER  GRB        // Färgordning. WS2812B är nästan alltid GRB.

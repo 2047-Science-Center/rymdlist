@@ -14,9 +14,17 @@
 
 #include <Arduino.h>
 #include <FastLED.h>
-#include <WiFi.h>
-#include <ESPmDNS.h>
-#include <Preferences.h>
+#if defined(ESP32)
+  #include <WiFi.h>
+  #include <ESPmDNS.h>
+  #include <Preferences.h>
+#elif defined(ESP8266)
+  #include <ESP8266WiFi.h>
+  #include <ESP8266mDNS.h>
+  #include <EEPROM.h>
+#else
+  #error "Rymdlist kräver ett kort med WiFi: ESP32 eller ESP8266."
+#endif
 #include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
 
@@ -47,7 +55,9 @@ Effect  currentEffect = EFF_SOLID;
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
+#if defined(ESP32)
 Preferences   prefs;
+#endif
 
 // Debouncad NVS-skrivning (skonar flashminnet vid slider-dragning)
 bool     nvsDirty   = false;
@@ -102,9 +112,35 @@ static String stateToJson() {
 }
 
 // ============================================================================
-//  NVS  (spara/återläs senaste inställning)
+//  BESTÄNDIG LAGRING  (spara/återläs senaste inställning)
+//    ESP32:   NVS via Preferences.
+//    ESP8266: liten struct i EEPROM (Preferences finns inte där).
 // ============================================================================
+static uint8_t effectIndex(const String& e) {
+  for (uint8_t i = 0; i < NUM_EFFECTS; i++)
+    if (e == EFFECTS[i]) return i;
+  return 0;   // "solid"
+}
+
+#if defined(ESP8266)
+struct Persist {                 // lagras på offset 0 i EEPROM
+  uint8_t magic;                 // PERSIST_MAGIC = giltig data
+  uint8_t effectIdx;
+  uint8_t r, g, b;
+  uint8_t brightness;
+  uint8_t speed;
+};
+static const uint8_t PERSIST_MAGIC = 0x5A;
+#endif
+
+static void initStorage() {
+#if defined(ESP8266)
+  EEPROM.begin(sizeof(Persist));
+#endif
+}
+
 static void saveState() {
+#if defined(ESP32)
   prefs.begin("rymdlist", /*readOnly=*/false);
   prefs.putString("effect", state.effect);
   prefs.putUInt("color", ((uint32_t)state.color.r << 16) |
@@ -113,6 +149,18 @@ static void saveState() {
   prefs.putUChar("bri", state.brightness);
   prefs.putUChar("spd", state.speed);
   prefs.end();
+#elif defined(ESP8266)
+  Persist p;
+  p.magic      = PERSIST_MAGIC;
+  p.effectIdx  = effectIndex(state.effect);
+  p.r          = state.color.r;
+  p.g          = state.color.g;
+  p.b          = state.color.b;
+  p.brightness = state.brightness;
+  p.speed      = state.speed;
+  EEPROM.put(0, p);
+  EEPROM.commit();
+#endif
 }
 
 static void loadState() {
@@ -122,6 +170,7 @@ static void loadState() {
   state.brightness = 128;
   state.speed      = 128;
 
+#if defined(ESP32)
   prefs.begin("rymdlist", /*readOnly=*/true);
   state.effect     = prefs.getString("effect", state.effect);
   uint32_t packed  = prefs.getUInt("color",
@@ -132,6 +181,16 @@ static void loadState() {
   state.brightness = prefs.getUChar("bri", state.brightness);
   state.speed      = prefs.getUChar("spd", state.speed);
   prefs.end();
+#elif defined(ESP8266)
+  Persist p;
+  EEPROM.get(0, p);
+  if (p.magic == PERSIST_MAGIC && p.effectIdx < NUM_EFFECTS) {
+    state.effect     = EFFECTS[p.effectIdx];
+    state.color      = CRGB(p.r, p.g, p.b);
+    state.brightness = p.brightness;
+    state.speed      = p.speed;
+  }
+#endif
 
   if (!isValidEffect(state.effect)) state.effect = "solid";
 }
@@ -255,9 +314,10 @@ static void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
 
 // ============================================================================
 //  WEBB-UI  (en sida, embeddad, ingen byggkedja, mörkt tema, storfingrat)
-//  På ESP32 hamnar const-strängar i flash och läses direkt — ingen PROGMEM.
+//  PROGMEM krävs på ESP8266 (annars äter sidan RAM); på ESP32 är det en no-op.
+//  Serveras därför PROGMEM-säkert (send_P på ESP8266) i route-handlern nedan.
 // ============================================================================
-const char INDEX_HTML[] = R"HTML(<!DOCTYPE html>
+const char INDEX_HTML[] PROGMEM = R"HTML(<!DOCTYPE html>
 <html lang="sv">
 <head>
 <meta charset="utf-8">
@@ -466,7 +526,11 @@ static void startNetworkServices() {
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
   server.on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
+#if defined(ESP8266)
+    req->send_P(200, "text/html", INDEX_HTML);   // PROGMEM-säkert på ESP8266
+#else
     req->send(200, "text/html", INDEX_HTML);
+#endif
   });
   server.onNotFound([](AsyncWebServerRequest* req) {
     req->redirect("/");              // allt annat -> UI:t (bekvämt i AP-läge)
@@ -491,6 +555,7 @@ void setup() {
                 NUM_LEDS, LED_PIN, MAX_MA, VOLTS);
 
   // Återläs senaste inställning och applicera den genom den enda tratten
+  initStorage();
   loadState();
   applyState(state);
   nvsDirty = false;                  // nyss inläst — inget att skriva tillbaka
@@ -516,12 +581,15 @@ void loop() {
     FastLED.show();
   }
 
-  // Debouncad NVS-skrivning
+  // Debouncad skrivning till beständig lagring
   if (nvsDirty && (now - nvsDirtyAt) > NVS_DEBOUNCE_MS) {
     saveState();
     nvsDirty = false;
   }
 
+#if defined(ESP8266)
+  MDNS.update();          // ESP8266:s mDNS måste pumpas i loop()
+#endif
   ws.cleanupClients();
 }
 
